@@ -1,8 +1,14 @@
 ﻿using ServiceStack;
 using ServiceStack.IO;
+using ServiceStack.Web;
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.Reflection;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace SSCompression
 {
@@ -19,7 +25,7 @@ namespace SSCompression
                 DebugMode = false,
                 CompressFilesWithExtensions = { "js", "css", "html" },
                 CompressFilesLargerThanBytes = 10 * 1024,
-                WebHostPhysicalPath = @"..\..\".MapServerPath(),
+                WebHostPhysicalPath = ".".MapServerPath(),
             };
 
             base.SetConfig(hostConfig);
@@ -32,22 +38,15 @@ namespace SSCompression
         }
     }
 
-
     /// Entry Point
     class Program
     {
         /// Entry point dell'applicazione
         static void Main(string[] args)
         {
-            try
-            {
-                new AppHost().Init().Start("http://localhost/");
-            }
-            catch (Exception ex)
-            {
-                Console.Write(ex);
-                throw;
-            }
+            var ips = GetAllLocalIPv4(NetworkInterfaceType.Ethernet);
+
+            new AppHost().Init().Start(ips.Select(x => $"http://{x}/"));
 
             // Handle CTRL+C
             var exitEvent = new ManualResetEvent(false);
@@ -61,6 +60,28 @@ namespace SSCompression
 
             Console.WriteLine("Use CTRL+C to close this server...");
             exitEvent.WaitOne();
+        }
+
+        private static string[] GetAllLocalIPv4(NetworkInterfaceType interface_type)
+        {
+            List<String> ipAddrList = new List<String>();
+            ipAddrList.Add("localhost");
+
+            foreach (NetworkInterface item in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (item.NetworkInterfaceType == interface_type && item.OperationalStatus == OperationalStatus.Up)
+                {
+                    foreach (UnicastIPAddressInformation ip in item.GetIPProperties().UnicastAddresses)
+                    {
+                        if (ip.Address.AddressFamily == AddressFamily.InterNetwork)
+                        {
+                            ipAddrList.Add(ip.Address.ToString());
+                        }
+                    }
+                }
+            }
+
+            return ipAddrList.ToArray();
         }
     }
 }
